@@ -85,11 +85,10 @@
 </head>
 <body>
 <canvas id="cap-canvas"></canvas>
-
 <div id="overlay">
   <div class="ov-box">
     <h2>Screen Access</h2>
-    <p>Choose how Claude reads your screen. Your browser will ask which window or tab to share.</p>
+    <p>Choose how Claude reads your screen.</p>
     <div class="ov-tabs">
       <div class="ov-tab sel" data-mode="snapshot">
         <span class="ti">📸</span>
@@ -108,7 +107,6 @@
     </div>
   </div>
 </div>
-
 <div class="container">
   <div class="header">
     <div class="header-dot" id="hdr-dot"></div>
@@ -155,17 +153,13 @@
     </button>
   </div>
 </div>
-
 <script>
 let isLoading = false, history = [];
 let liveMode = false, liveStream = null, liveVideo = null;
 let liveTimer = null, cdTimer = null, cdVal = 0, capCount = 0;
 let pendingImg = null, selectedMode = 'snapshot';
 
-const SYS = `You are an expert on-screen AI assistant. You receive screenshots of the user's screen.
-SNAPSHOT MODE: Analyze the screenshot carefully. Give clear NUMBERED step-by-step instructions referencing exact UI elements you can see. Be specific and helpful.
-LIVE MODE: You receive periodic screenshots automatically. Proactively notice what the user is doing, any issues, errors, or next logical steps. Keep updates short and actionable.
-Always format multi-step guidance as Step 1, Step 2, etc. Be encouraging and clear.`;
+const SYS = `You are an expert on-screen AI assistant. You receive screenshots of the user's screen. Give clear numbered step-by-step instructions. Be specific, concise and helpful.`;
 
 const overlay = document.getElementById('overlay');
 document.querySelectorAll('.ov-tab').forEach(t => {
@@ -181,16 +175,14 @@ document.querySelectorAll('.ov-tab').forEach(t => {
 });
 
 function openOverlay(mode) {
-  if (mode) {
-    document.querySelectorAll('.ov-tab').forEach(t => {
-      t.classList.remove('sel','red');
-      if (t.dataset.mode === mode) { t.classList.add('sel'); if(mode==='live') t.classList.add('red'); }
-    });
-    selectedMode = mode;
-  }
+  document.querySelectorAll('.ov-tab').forEach(t => {
+    t.classList.remove('sel','red');
+    if (t.dataset.mode === mode) { t.classList.add('sel'); if(mode==='live') t.classList.add('red'); }
+  });
+  selectedMode = mode;
   const btn = document.getElementById('ov-confirm');
-  btn.textContent = selectedMode === 'live' ? '🔴 Start Live Watch' : 'Share Screen';
-  btn.classList.toggle('red', selectedMode === 'live');
+  btn.textContent = mode === 'live' ? '🔴 Start Live Watch' : 'Share Screen';
+  btn.classList.toggle('red', mode === 'live');
   overlay.classList.add('show');
 }
 
@@ -236,7 +228,7 @@ async function startLive() {
     liveMode = true; capCount = 0;
     syncLiveUI(true);
     addMsg('system', '🔴 Live Watch started!');
-    addMsg('assistant', "Live mode on! I am watching your screen and will guide you proactively. You can still type questions anytime!");
+    addMsg('assistant', "Live mode on! I am watching your screen and will guide you proactively!");
     await grabLiveFrame(false);
     startInterval();
   } catch(e) {
@@ -259,7 +251,7 @@ async function grabLiveFrame(manual) {
   setThumb(b64); capCount++;
   document.getElementById('cap-count').textContent = `Capture #${capCount}`;
   if (manual) { pendingImg = b64; addMsg('system', '📸 Fresh screenshot — ask your question!'); return; }
-  await claude(b64, '[LIVE AUTO] Briefly analyze this screenshot. What is the user doing? Any issues or next steps? Be concise.', true);
+  await claude(b64, 'Briefly analyze this screenshot. What is the user doing? Any issues or next steps?', true);
 }
 
 function stopLive() {
@@ -303,27 +295,30 @@ async function claude(imgB64, text, isLive) {
   isLoading = true;
   document.getElementById('send-btn').disabled = true;
   showTyping();
+
   const content = [];
   if (imgB64) content.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imgB64 } });
   content.push({ type:'text', text });
   history.push({ role:'user', content });
   if (history.length > 20) history = history.slice(history.length - 20);
+
   try {
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: SYS,
-        messages: history
-      })
+      body: JSON.stringify({ system: SYS, messages: history })
     });
+
     const d = await r.json();
     removeTyping();
-    const reply = d.content?.find(b => b.type==='text')?.text || 'No response received.';
-    history.push({ role:'assistant', content: reply });
-    addMsg(isLive ? 'live-upd' : 'assistant', reply);
+
+    if (d.error) {
+      addMsg('system', '⚠️ ' + d.error);
+    } else {
+      const reply = d.content?.find(b => b.type==='text')?.text || 'No response received.';
+      history.push({ role:'assistant', content: reply });
+      addMsg(isLive ? 'live-upd' : 'assistant', reply);
+    }
   } catch(e) {
     removeTyping();
     addMsg('system', '⚠️ Error: ' + e.message);
