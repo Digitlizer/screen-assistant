@@ -313,7 +313,7 @@ async function claude(imgB64, text, isLive) {
     removeTyping();
 
     if (d.error) {
-      addMsg('system', '⚠️ ' + d.error);
+      addMsg('system', '⚠️ ' + JSON.stringify(d.error));
     } else {
       const reply = d.content?.find(b => b.type==='text')?.text || 'No response received.';
       history.push({ role:'assistant', content: reply });
