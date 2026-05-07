@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screen Assistant</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Mono', monospace; background: #0a0a0f; color: #e8e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { width: 100%; max-width: 480px; height: 100vh; display: flex; flex-direction: column; background: #12121e; border-left: 1px solid rgba(139,92,246,0.2); border-right: 1px solid rgba(139,92,246,0.2); }
+  .header { padding: 14px 18px; background: rgba(139,92,246,0.1); border-bottom: 1px solid rgba(139,92,246,0.15); display: flex; align-items: center; gap: 10px; }
+  .header-dot { width: 10px; height: 10px; border-radius: 50%; background: #8b5cf6; box-shadow: 0 0 8px rgba(139,92,246,0.8); animation: blink 1.8s ease-in-out infinite; transition: background 0.3s; }
+  .header-dot.live { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.9); }
+  .header-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: #c8b4ff; flex: 1; }
+  .header-status { font-size: 10px; padding: 3px 10px; border-radius: 100px; background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.3s; }
+  .header-status.live-st { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.3); animation: st-pulse 1.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes st-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .mode-bar { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.2); }
+  .mode-label { font-size: 10px; color: #444460; text-transform: uppercase; letter-spacing: 0.08em; }
+  .sw-wrap { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 5px 10px; cursor: pointer; transition: all 0.2s; user-select: none; }
+  .sw-wrap:hover { border-color: rgba(139,92,246,0.3); }
+  .sw-wrap.live-on { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.35); }
+  .sw { width: 28px; height: 15px; border-radius: 100px; background: rgba(255,255,255,0.1); position: relative; transition: background 0.25s; }
+  .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #555; transition: transform 0.25s, background 0.25s; }
+  .sw.on { background: rgba(239,68,68,0.45); }
+  .sw.on::after { transform: translateX(13px); background: #ef4444; }
+  .sw-lbl { font-size: 11px; color: #6666a0; transition: color 0.2s; white-space: nowrap; }
+  .sw-wrap.live-on .sw-lbl { color: #f87171; }
+  .iv-select { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 5px 7px; color: #6666a0; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; outline: none; }
+  .snap-btn { margin-left: auto; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.28); border-radius: 7px; padding: 5px 10px; color: #a78bfa; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; transition: all 0.18s; }
+  .snap-btn:hover { background: rgba(139,92,246,0.22); }
+  #live-strip { padding: 6px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); display: none; align-items: center; gap: 8px; }
+  #live-strip.show { display: flex; }
+  #live-thumb { width: 64px; height: 36px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(239,68,68,0.3); }
+  .live-info { font-size: 10px; color: #444460; line-height: 1.6; }
+  .live-info strong { color: #7777a0; }
+  .stop-btn { margin-left: auto; padding: 4px 10px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.28); border-radius: 6px; color: #f87171; font-size: 10px; font-family: 'DM Mono', monospace; cursor: pointer; white-space: nowrap; }
+  .stop-btn:hover { background: rgba(239,68,68,0.2); }
+  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
+  #messages::-webkit-scrollbar { width: 3px; }
+  #messages::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.2); border-radius: 3px; }
+  .msg { max-width: 90%; font-size: 12.5px; line-height: 1.65; padding: 10px 14px; border-radius: 14px; animation: msgIn 0.22s ease; }
+  @keyframes msgIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .msg.assistant { align-self: flex-start; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #d0d0e8; border-bottom-left-radius: 3px; }
+  .msg.user { align-self: flex-end; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.system { align-self: center; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.16); color: #5a5a90; font-size: 10.5px; border-radius: 100px; padding: 4px 12px; max-width: 97%; text-align: center; }
+  .msg.live-upd { align-self: flex-start; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.14); color: #d0d0e8; border-bottom-left-radius: 3px; position: relative; }
+  .msg.live-upd::before { content: '🔴'; position: absolute; top: 8px; right: 10px; font-size: 8px; opacity: 0.6; }
+  .steps { margin-top: 6px; }
+  .step { display: flex; gap: 7px; margin-bottom: 5px; align-items: flex-start; }
+  .step-num { flex-shrink: 0; width: 17px; height: 17px; background: rgba(139,92,246,0.25); border-radius: 50%; font-size: 9px; display: flex; align-items: center; justify-content: center; color: #c4b5fd; font-weight: 600; margin-top: 1px; }
+  .typing { display: flex; gap: 5px; align-items: center; padding: 11px 13px; }
+  .typing span { width: 5px; height: 5px; background: #8b5cf6; border-radius: 50%; animation: dot 1.2s ease-in-out infinite; }
+  .typing span:nth-child(2){animation-delay:.18s} .typing span:nth-child(3){animation-delay:.36s}
+  @keyframes dot{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+  .chat-foot { padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 8px; align-items: flex-end; }
+  #user-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 9px 12px; color: #e0e0f0; font-family: 'DM Mono', monospace; font-size: 12px; resize: none; min-height: 38px; max-height: 90px; outline: none; transition: border-color 0.15s; line-height: 1.5; }
+  #user-input:focus { border-color: rgba(139,92,246,0.45); }
+  #user-input::placeholder { color: #33334a; }
+  #send-btn { width: 36px; height: 36px; border-radius: 9px; border: none; background: linear-gradient(135deg, #8b5cf6, #6366f1); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.15s, opacity 0.15s; }
+  #send-btn:hover { transform: scale(1.08); }
+  #send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  #overlay { position: fixed; inset: 0; z-index: 99998; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; }
+  #overlay.show { display: flex; }
+  .ov-box { background: #12121e; border: 1px solid rgba(139,92,246,0.35); border-radius: 18px; padding: 28px 26px; max-width: 360px; width: 90%; text-align: center; }
+  .ov-box h2 { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: #c8b4ff; margin-bottom: 8px; }
+  .ov-box p { font-size: 11.5px; color: #555578; line-height: 1.7; margin-bottom: 16px; }
+  .ov-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .ov-tab { flex: 1; padding: 10px 6px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: #8888aa; font-family: 'DM Mono', monospace; font-size: 11px; text-align: center; transition: all 0.18s; line-height: 1.5; }
+  .ov-tab .ti { font-size: 20px; display: block; margin-bottom: 4px; }
+  .ov-tab .tt { font-weight: 500; display: block; }
+  .ov-tab .td { font-size: 10px; color: #444460; display: block; margin-top: 2px; }
+  .ov-tab.sel { background: rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.45); color: #c4b5fd; }
+  .ov-tab.sel.red { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+  .ov-btns { display: flex; gap: 8px; }
+  .ov-btn { flex: 1; padding: 10px; border-radius: 9px; font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer; border: none; transition: opacity 0.15s; }
+  .ov-btn.primary { background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff; }
+  .ov-btn.primary.red { background: linear-gradient(135deg, #ef4444, #dc2626); }
+  .ov-btn.sec { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #6666aa; }
+  .ov-btn:hover { opacity: 0.82; }
+  canvas#cap-canvas { display: none; }
+</style>
+</head>
+<body>
+<canvas id="cap-canvas"></canvas>
+
+<div id="overlay">
+  <div class="ov-box">
+    <h2>Screen Access</h2>
+    <p>Choose how Claude reads your screen. Your browser will ask which window or tab to share.</p>
+    <div class="ov-tabs">
+      <div class="ov-tab sel" data-mode="snapshot">
+        <span class="ti">📸</span>
+        <span class="tt">Snapshot</span>
+        <span class="td">Capture once and ask</span>
+      </div>
+      <div class="ov-tab" data-mode="live">
+        <span class="ti">🔴</span>
+        <span class="tt">Live Watch</span>
+        <span class="td">Auto every N seconds</span>
+      </div>
+    </div>
+    <div class="ov-btns">
+      <button class="ov-btn primary" id="ov-confirm">Share Screen</button>
+      <button class="ov-btn sec" id="ov-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="header">
+    <div class="header-dot" id="hdr-dot"></div>
+    <span class="header-title">Screen Assistant</span>
+    <span class="header-status" id="hdr-status">Idle</span>
+  </div>
+  <div class="mode-bar">
+    <span class="mode-label">Screen</span>
+    <div class="sw-wrap" id="live-wrap">
+      <div class="sw" id="sw"></div>
+      <span class="sw-lbl" id="sw-lbl">Live Off</span>
+    </div>
+    <select class="iv-select" id="iv-sel">
+      <option value="5">5s</option>
+      <option value="10" selected>10s</option>
+      <option value="20">20s</option>
+      <option value="30">30s</option>
+    </select>
+    <button class="snap-btn" id="snap-btn">📸 Snapshot</button>
+  </div>
+  <div id="live-strip">
+    <img id="live-thumb" alt="preview" />
+    <div class="live-info">
+      <strong id="cap-count">Capture #0</strong><br>
+      Next in <span id="cd-num">—</span>s
+    </div>
+    <button class="stop-btn" id="stop-btn">⏹ Stop Live</button>
+  </div>
+  <div id="messages">
+    <div class="msg system">Ready — choose Snapshot or enable Live Watch above</div>
+    <div class="msg assistant">Hi! 👋 I am your on-screen AI assistant.<br><br>
+      • <strong>Snapshot</strong> — capture once, ask anything<br>
+      • <strong>Live Watch</strong> — I watch your screen automatically<br><br>
+      Click <strong>Snapshot</strong> or toggle <strong>Live On</strong> to begin!
+    </div>
+  </div>
+  <div class="chat-foot">
+    <textarea id="user-input" placeholder="Ask anything… (Enter to send)" rows="1"></textarea>
+    <button id="send-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+let isLoading = false, history = [];
+let liveMode = false, liveStream = null, liveVideo = null;
+let liveTimer = null, cdTimer = null, cdVal = 0, capCount = 0;
+let pendingImg = null, selectedMode = 'snapshot';
+
+const SYS = `You are an expert on-screen AI assistant. You receive screenshots of the user's screen.
+SNAPSHOT MODE: Analyze the screenshot carefully. Give clear NUMBERED step-by-step instructions referencing exact UI elements you can see. Be specific and helpful.
+LIVE MODE: You receive periodic screenshots automatically. Proactively notice what the user is doing, any issues, errors, or next logical steps. Keep updates short and actionable.
+Always format multi-step guidance as Step 1, Step 2, etc. Be encouraging and clear.`;
+
+const overlay = document.getElementById('overlay');
+document.querySelectorAll('.ov-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.ov-tab').forEach(x => x.classList.remove('sel','red'));
+    t.classList.add('sel');
+    selectedMode = t.dataset.mode;
+    if (selectedMode === 'live') t.classList.add('red');
+    const btn = document.getElementById('ov-confirm');
+    btn.textContent = selectedMode === 'live' ? '🔴 Start Live Watch' : 'Share Screen';
+    btn.classList.toggle('red', selectedMode === 'live');
+  });
+});
+
+function openOverlay(mode) {
+  if (mode) {
+    document.querySelectorAll('.ov-tab').forEach(t => {
+      t.classList.remove('sel','red');
+      if (t.dataset.mode === mode) { t.classList.add('sel'); if(mode==='live') t.classList.add('red'); }
+    });
+    selectedMode = mode;
+  }
+  const btn = document.getElementById('ov-confirm');
+  btn.textContent = selectedMode === 'live' ? '🔴 Start Live Watch' : 'Share Screen';
+  btn.classList.toggle('red', selectedMode === 'live');
+  overlay.classList.add('show');
+}
+
+document.getElementById('ov-cancel').addEventListener('click', () => overlay.classList.remove('show'));
+document.getElementById('ov-confirm').addEventListener('click', async () => {
+  overlay.classList.remove('show');
+  if (selectedMode === 'live') await startLive();
+  else await doSnapshot();
+});
+
+document.getElementById('snap-btn').addEventListener('click', () => {
+  if (liveMode) grabLiveFrame(true);
+  else openOverlay('snapshot');
+});
+
+async function doSnapshot() {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const vid = document.createElement('video');
+    vid.srcObject = stream; await vid.play();
+    pendingImg = captureFrame(vid);
+    stream.getTracks().forEach(t => t.stop());
+    setThumb(pendingImg);
+    addMsg('system', '📸 Screenshot taken — ask your question!');
+    addMsg('assistant', "Got it! I can see your screen. What would you like help with?");
+    setStatus('Snapshot ready', false);
+  } catch(e) {
+    if (e.name !== 'NotAllowedError') addMsg('system', '⚠️ Could not capture screen.');
+  }
+}
+
+document.getElementById('live-wrap').addEventListener('click', () => {
+  liveMode ? stopLive() : openOverlay('live');
+});
+document.getElementById('stop-btn').addEventListener('click', stopLive);
+
+async function startLive() {
+  try {
+    liveStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    liveVideo = document.createElement('video');
+    liveVideo.srcObject = liveStream; await liveVideo.play();
+    liveStream.getVideoTracks()[0].addEventListener('ended', stopLive);
+    liveMode = true; capCount = 0;
+    syncLiveUI(true);
+    addMsg('system', '🔴 Live Watch started!');
+    addMsg('assistant', "Live mode on! I am watching your screen and will guide you proactively. You can still type questions anytime!");
+    await grabLiveFrame(false);
+    startInterval();
+  } catch(e) {
+    if (e.name !== 'NotAllowedError') addMsg('system', '⚠️ Could not start live mode.');
+    stopLive();
+  }
+}
+
+function startInterval() {
+  clearInterval(liveTimer); clearInterval(cdTimer);
+  const iv = parseInt(document.getElementById('iv-sel').value, 10);
+  cdVal = iv; updCd();
+  cdTimer = setInterval(() => { cdVal--; updCd(); if(cdVal<=0) cdVal=iv; }, 1000);
+  liveTimer = setInterval(async () => { cdVal=iv; if(!isLoading) await grabLiveFrame(false); }, iv*1000);
+}
+
+async function grabLiveFrame(manual) {
+  if (!liveVideo) return;
+  const b64 = captureFrame(liveVideo);
+  setThumb(b64); capCount++;
+  document.getElementById('cap-count').textContent = `Capture #${capCount}`;
+  if (manual) { pendingImg = b64; addMsg('system', '📸 Fresh screenshot — ask your question!'); return; }
+  await claude(b64, '[LIVE AUTO] Briefly analyze this screenshot. What is the user doing? Any issues or next steps? Be concise.', true);
+}
+
+function stopLive() {
+  clearInterval(liveTimer); clearInterval(cdTimer);
+  liveStream?.getTracks().forEach(t => t.stop());
+  liveStream = null; liveVideo = null; liveMode = false;
+  syncLiveUI(false);
+  addMsg('system', '⏹ Live Watch stopped.');
+  setStatus('Idle', false);
+}
+
+document.getElementById('iv-sel').addEventListener('change', () => { if(liveMode) startInterval(); });
+
+function captureFrame(vid) {
+  const c = document.getElementById('cap-canvas');
+  c.width = vid.videoWidth||1280; c.height = vid.videoHeight||720;
+  c.getContext('2d').drawImage(vid, 0, 0);
+  return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+}
+
+function setThumb(b64) { document.getElementById('live-thumb').src = 'data:image/jpeg;base64,' + b64; }
+function updCd() { document.getElementById('cd-num').textContent = cdVal; }
+
+function syncLiveUI(on) {
+  document.getElementById('live-wrap').classList.toggle('live-on', on);
+  document.getElementById('sw').classList.toggle('on', on);
+  document.getElementById('sw-lbl').textContent = on ? 'Live On' : 'Live Off';
+  document.getElementById('live-strip').classList.toggle('show', on);
+  document.getElementById('hdr-dot').classList.toggle('live', on);
+  setStatus(on ? '🔴 LIVE' : 'Idle', on);
+}
+
+function setStatus(txt, live) {
+  const el = document.getElementById('hdr-status');
+  el.textContent = txt;
+  el.classList.toggle('live-st', live);
+}
+
+async function claude(imgB64, text, isLive) {
+  if (isLoading) return;
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+  showTyping();
+  const content = [];
+  if (imgB64) content.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imgB64 } });
+  content.push({ type:'text', text });
+  history.push({ role:'user', content });
+  if (history.length > 20) history = history.slice(history.length - 20);
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYS,
+        messages: history
+      })
+    });
+    const d = await r.json();
+    removeTyping();
+    const reply = d.content?.find(b => b.type==='text')?.text || 'No response received.';
+    history.push({ role:'assistant', content: reply });
+    addMsg(isLive ? 'live-upd' : 'assistant', reply);
+  } catch(e) {
+    removeTyping();
+    addMsg('system', '⚠️ Error: ' + e.message);
+  } finally {
+    isLoading = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+async function send() {
+  if (isLoading) return;
+  const inp = document.getElementById('user-input');
+  const txt = inp.value.trim(); if (!txt) return;
+  inp.value = ''; inp.style.height = 'auto';
+  addMsg('user', txt);
+  let img = pendingImg || (liveMode && liveVideo ? captureFrame(liveVideo) : null);
+  pendingImg = null;
+  await claude(img, txt, false);
+}
+
+document.getElementById('send-btn').addEventListener('click', send);
+document.getElementById('user-input').addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+document.getElementById('user-input').addEventListener('input', function() {
+  this.style.height='auto';
+  this.style.height = Math.min(this.scrollHeight,90)+'px';
+});
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmt(text) {
+  const lines = text.split('\n');
+  let html='', stHtml='', inSt=false;
+  for (const ln of lines) {
+    const m = ln.match(/^Step\s*(\d+)[:.]\s*(.+)/i);
+    if (m) {
+      if (!inSt) { inSt=true; stHtml='<div class="steps">'; }
+      stHtml += `<div class="step"><div class="step-num">${m[1]}</div><div>${esc(m[2])}</div></div>`;
+    } else {
+      if (inSt) { html+=stHtml+'</div>'; inSt=false; stHtml=''; }
+      const f = esc(ln).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+      if (ln.trim()) html+=`<p style="margin-bottom:5px">${f}</p>`;
+    }
+  }
+  if (inSt) html+=stHtml+'</div>';
+  return html;
+}
+function addMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = 'msg '+role;
+  el.innerHTML = (role==='assistant'||role==='live-upd') ? fmt(text) : esc(text);
+  const msgs = document.getElementById('messages');
+  msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+}
+function showTyping() {
+  removeTyping();
+  const el = document.createElement('div');
+  el.className = 'msg assistant typing'; el.id = 'typ';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  const msgs = document.getElementById('messages');
+  msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+}
+function removeTyping() { document.getElementById('typ')?.remove(); }
+</script>
+</body>
+</html>
