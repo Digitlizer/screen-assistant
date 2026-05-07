@@ -1,26 +1,31 @@
 exports.handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   const API_KEY = process.env.ANTHROPIC_API_KEY;
-
-  console.log('API Key exists:', !!API_KEY);
-  console.log('API Key prefix:', API_KEY ? API_KEY.substring(0, 10) : 'MISSING');
-
   if (!API_KEY) {
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'API key not configured' })
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'API key missing' })
     };
   }
 
   try {
     const body = JSON.parse(event.body);
-    console.log('Request model:', body.model);
-    console.log('Messages count:', body.messages?.length);
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -28,28 +33,28 @@ exports.handler = async (event) => {
         'x-api-key': API_KEY,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: body.system || 'You are a helpful assistant.',
+        messages: body.messages
+      })
     });
 
-    console.log('Anthropic status:', response.status);
-
-    const text = await response.text();
-    console.log('Anthropic response:', text.substring(0, 300));
-
+    const data = await response.json();
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
       },
-      body: text
+      body: JSON.stringify(data)
     };
 
   } catch (error) {
-    console.log('Error:', error.message);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ error: error.message })
     };
   }
